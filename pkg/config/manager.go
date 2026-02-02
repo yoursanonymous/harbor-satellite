@@ -228,6 +228,10 @@ func readAndReturnConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+const (
+	httpClientTimeout = 10 * time.Second
+)
+
 type RefreshCredentialsResponse struct {
 	RobotName string `json:"robot_name"`
 	Secret    string `json:"secret"`
@@ -237,7 +241,8 @@ func (cm *ConfigManager) RefreshCredentials(ctx context.Context) error {
 	// 1. Acquire lock to read configuration
 	cm.mu.RLock()
 	satelliteName := cm.config.StateConfig.SatelliteName
-	
+	token := cm.Token
+
 	baseURL := cm.DefaultGroundControlURL
 	if baseURL == "" {
 		baseURL = os.Getenv("GROUND_CONTROL_URL")
@@ -251,8 +256,11 @@ func (cm *ConfigManager) RefreshCredentials(ctx context.Context) error {
 	if baseURL == "" {
 		return fmt.Errorf("ground control URL not set")
 	}
+	if token == "" {
+		return fmt.Errorf("satellite token not set")
+	}
 
-	creds, err := cm.performCredentialRefreshRequest(ctx, baseURL, satelliteName)
+	creds, err := cm.performCredentialRefreshRequest(ctx, baseURL, satelliteName, token)
 	if err != nil {
 		return err
 	}
@@ -267,12 +275,12 @@ func (cm *ConfigManager) RefreshCredentials(ctx context.Context) error {
 	cm.config.StateConfig.RegistryCredentials.Username = creds.RobotName
 	cm.config.StateConfig.RegistryCredentials.Password = creds.Secret
 	cm.mu.Unlock() // Unlock before calling WriteConfig to avoid deadlock
-	
+
 	// Persist
 	return cm.WriteConfig()
 }
 
-func (cm *ConfigManager) performCredentialRefreshRequest(ctx context.Context, baseURL, satelliteName string) (*RefreshCredentialsResponse, error) {
+func (cm *ConfigManager) performCredentialRefreshRequest(ctx context.Context, baseURL, satelliteName, token string) (*RefreshCredentialsResponse, error) {
 	// 2. Perform Network I/O (Unlocked)
 	encodedSatelliteName := url.PathEscape(satelliteName)
 	refreshURL := fmt.Sprintf("%s/satellites/%s/refresh-credentials", baseURL, encodedSatelliteName)
@@ -281,8 +289,11 @@ func (cm *ConfigManager) performCredentialRefreshRequest(ctx context.Context, ba
 	if err != nil {
 		return nil, err
 	}
-	
-	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Add authentication header
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: httpClientTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -290,7 +301,10 @@ func (cm *ConfigManager) performCredentialRefreshRequest(ctx context.Context, ba
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to refresh credentials: %s (could not read response body)", resp.Status)
+		}
 		return nil, fmt.Errorf("failed to refresh credentials: %s, body: %s", resp.Status, string(body))
 	}
 

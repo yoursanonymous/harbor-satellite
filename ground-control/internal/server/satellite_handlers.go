@@ -27,17 +27,17 @@ type RegisterSatelliteParams struct {
 }
 
 type SatelliteStatusParams struct {
-	Name                string    `json:"name"`                   // Satellite identifier
-	Activity            string    `json:"activity"`               // Current activity satellite is doing
-	StateReportInterval string    `json:"state_report_interval"`  // Interval between status reports
-	LatestStateDigest   string    `json:"latest_state_digest"`    // Digest of latest state artifact
-	LatestConfigDigest  string    `json:"latest_config_digest"`   // Digest of latest config artifact
-	MemoryUsedBytes     uint64    `json:"memory_used_bytes"`      // Memory currently used by satellite
-	StorageUsedBytes    uint64    `json:"storage_used_bytes"`     // Storage currently used by satellite
-	CPUPercent          float64   `json:"cpu_percent"`            // CPU usage percentage
-	RequestCreatedTime  time.Time `json:"request_created_time"`   // Timestamp of request creation
-	LastSyncDurationMs  int64     `json:"last_sync_duration_ms"`  // How long last sync took
-	ImageCount          int       `json:"image_count"`            // Number of images in local registry
+	Name                string    `json:"name"`                  // Satellite identifier
+	Activity            string    `json:"activity"`              // Current activity satellite is doing
+	StateReportInterval string    `json:"state_report_interval"` // Interval between status reports
+	LatestStateDigest   string    `json:"latest_state_digest"`   // Digest of latest state artifact
+	LatestConfigDigest  string    `json:"latest_config_digest"`  // Digest of latest config artifact
+	MemoryUsedBytes     uint64    `json:"memory_used_bytes"`     // Memory currently used by satellite
+	StorageUsedBytes    uint64    `json:"storage_used_bytes"`    // Storage currently used by satellite
+	CPUPercent          float64   `json:"cpu_percent"`           // CPU usage percentage
+	RequestCreatedTime  time.Time `json:"request_created_time"`  // Timestamp of request creation
+	LastSyncDurationMs  int64     `json:"last_sync_duration_ms"` // How long last sync took
+	ImageCount          int       `json:"image_count"`           // Number of images in local registry
 }
 
 type RegisterSatelliteResponse struct {
@@ -76,11 +76,11 @@ func (s *Server) registerSatelliteHandler(w http.ResponseWriter, r *http.Request
 	roboPresent, err := harbor.IsRobotPresent(r.Context(), req.Name)
 	if err != nil {
 		log.Println(err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: fmt.Sprintf("Error querying for robot account: %v", err.Error()),
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -128,11 +128,11 @@ func (s *Server) registerSatelliteHandler(w http.ResponseWriter, r *http.Request
 	satellite, err := q.CreateSatellite(r.Context(), req.Name)
 	if err != nil {
 		log.Println("Error creating satellite:", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: fmt.Sprintf("Error: %v", err.Error()),
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -228,11 +228,11 @@ func (s *Server) ztrHandler(w http.ResponseWriter, r *http.Request) {
 			token[len(token)-4:],
 		)
 		log.Printf("Invalid Satellite Token %s: %v", masked, err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Invalid Token",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -258,11 +258,11 @@ func (s *Server) ztrHandler(w http.ResponseWriter, r *http.Request) {
 	rbt, err := utils.CreateRobotAccForSatellite(r.Context(), projects, satellite.Name)
 	if err != nil {
 		log.Println(err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: fmt.Sprintf("Error: creating robot account %v", err),
 			Code:    http.StatusInternalServerError, // Internal error since this is system logic
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -272,7 +272,6 @@ func (s *Server) ztrHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-// Fix loop error handling
 	var groupNames []string
 	for _, g := range groups {
 		grp, err := q.GetGroupByID(r.Context(), g.GroupID)
@@ -291,7 +290,7 @@ func (s *Server) ztrHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := config.StateConfig{
-		StateURL: satelliteState,
+		StateURL:      satelliteState,
 		SatelliteName: satellite.Name,
 		RegistryCredentials: config.RegistryCredentials{
 			Username: rbt.Name,
@@ -304,11 +303,11 @@ func (s *Server) ztrHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("error deleting token")
 		log.Println(err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Error deleting token",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -319,11 +318,11 @@ func (s *Server) listSatelliteHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := s.dbQueries.ListSatellites(r.Context())
 	if err != nil {
 		log.Printf("Error: Failed to List Satellites: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to List Satellites",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -432,11 +431,11 @@ func (s *Server) GetSatelliteByName(w http.ResponseWriter, r *http.Request) {
 	result, err := s.dbQueries.GetSatelliteByName(r.Context(), satellite)
 	if err != nil {
 		log.Printf("error: failed to get satellite: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Get Satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -476,54 +475,54 @@ func (s *Server) DeleteSatelliteByName(w http.ResponseWriter, r *http.Request) {
 	sat, err := q.GetSatelliteByName(r.Context(), satellite)
 	if err != nil {
 		log.Printf("error: failed to get satellite by name: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Satellite Not Found",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 	robotAcc, err := q.GetRobotAccBySatelliteID(r.Context(), sat.ID)
 	if err != nil {
 		log.Printf("error: robotAcc for satellite does not exist: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Delete Satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	robotID, err := strconv.ParseInt(robotAcc.RobotID, 10, 64)
 	if err != nil {
 		log.Printf("error: Invalid robot ID: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Delete Satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	err = q.DeleteSatelliteByName(r.Context(), satellite)
 	if err != nil {
 		log.Printf("error: failed to delete satellite: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Delete Satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	_, err = harbor.DeleteRobotAccount(r.Context(), robotID)
 	if err != nil {
 		log.Printf("error: failed to delete robot account: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Delete Satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -568,11 +567,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	sat, err := s.dbQueries.GetSatelliteByName(r.Context(), req.Satellite)
 	if err != nil {
 		log.Printf("Error: Satellite Not Found: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Satellite Not Found",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -580,11 +579,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	grp, err := s.dbQueries.GetGroupByName(r.Context(), req.Group)
 	if err != nil {
 		log.Printf("Error: Group Not Found: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Group Not Found",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -595,11 +594,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("Error: Failed to check satellite in group %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to check satellite in group",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -613,11 +612,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	tx, err := s.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to start database transaction",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -646,11 +645,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	err = q.AddSatelliteToGroup(r.Context(), params)
 	if err != nil {
 		log.Printf("Error: Failed to add satellite to group: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to add satellite to group",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -658,11 +657,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	groupList, err := q.SatelliteGroupList(r.Context(), sat.ID)
 	if err != nil {
 		log.Printf("Error: Failed to get updated satellite group list: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to get updated satellite group list",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -673,11 +672,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 		grp, err := s.dbQueries.GetGroupByID(r.Context(), group.GroupID)
 		if err != nil {
 			log.Printf("Error: Failed to get group by ID %d: %v", group.GroupID, err)
-			err := &AppError{
+			appErr := &AppError{
 				Message: "Error: Failed to get group details",
 				Code:    http.StatusInternalServerError,
 			}
-			HandleAppError(w, err)
+			HandleAppError(w, appErr)
 			return
 		}
 		projects = append(projects, grp.Projects...)
@@ -695,11 +694,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	robotAcc, err := s.dbQueries.GetRobotAccBySatelliteID(r.Context(), sat.ID)
 	if err != nil {
 		log.Printf("Error: Failed to get robot account for satellite: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to get robot account for satellite",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -707,11 +706,11 @@ func (s *Server) addSatelliteToGroup(w http.ResponseWriter, r *http.Request) {
 	_, err = utils.UpdateRobotProjects(r.Context(), projects, robotAcc.RobotID)
 	if err != nil {
 		log.Printf("Error: Failed to update robot account permissions: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to update robot account permissions",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -745,11 +744,11 @@ func (s *Server) removeSatelliteFromGroup(w http.ResponseWriter, r *http.Request
 	tx, err := s.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to start database transaction",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -772,22 +771,22 @@ func (s *Server) removeSatelliteFromGroup(w http.ResponseWriter, r *http.Request
 	sat, err := q.GetSatelliteByName(r.Context(), satelliteName)
 	if err != nil {
 		log.Printf("Error: Satellite Not Found: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Satellite Not Found",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	grp, err := q.GetGroupByName(r.Context(), groupName)
 	if err != nil {
 		log.Printf("Error: Group Not Found: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Group Not Found",
 			Code:    http.StatusBadRequest,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -799,33 +798,33 @@ func (s *Server) removeSatelliteFromGroup(w http.ResponseWriter, r *http.Request
 	err = q.RemoveSatelliteFromGroup(r.Context(), params)
 	if err != nil {
 		log.Printf("error: failed to remove satellite from group: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Remove Satellite from Group",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	robotAcc, err := q.GetRobotAccBySatelliteID(r.Context(), sat.ID)
 	if err != nil {
 		log.Printf("Error: Failed to Add permission to robot account: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to Add permission to robot account",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
 	groupList, err := q.SatelliteGroupList(r.Context(), sat.ID)
 	if err != nil {
 		log.Printf("Error: Failed: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to refresh satellite group list",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 
@@ -836,11 +835,11 @@ func (s *Server) removeSatelliteFromGroup(w http.ResponseWriter, r *http.Request
 		grp, err := q.GetGroupByID(r.Context(), group.GroupID)
 		if err != nil {
 			log.Printf("Error: Failed: %v", err)
-			err := &AppError{
+			appErr := &AppError{
 				Message: "Error: Failed to to refresh satellite group list",
 				Code:    http.StatusInternalServerError,
 			}
-			HandleAppError(w, err)
+			HandleAppError(w, appErr)
 			return
 		}
 		projects = append(projects, grp.Projects...)
@@ -853,11 +852,11 @@ func (s *Server) removeSatelliteFromGroup(w http.ResponseWriter, r *http.Request
 	_, err = utils.UpdateRobotProjects(r.Context(), projects, robotAcc.RobotID)
 	if err != nil {
 		log.Printf("Error: Failed to Add permission to robot account: %v", err)
-		err := &AppError{
+		appErr := &AppError{
 			Message: "Error: Failed to update robot account permissions",
 			Code:    http.StatusInternalServerError,
 		}
-		HandleAppError(w, err)
+		HandleAppError(w, appErr)
 		return
 	}
 

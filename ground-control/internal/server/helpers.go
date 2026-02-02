@@ -163,6 +163,11 @@ func assignPermissionsToRobot(ctx context.Context, q *database.Queries, groups *
 				}
 			}
 
+			if len(projects) == 0 {
+				log.Printf("Warning: No projects found for group %s", groupName)
+				continue
+			}
+
 			project := projects[0]
 			// give permission to the robot account for all the projects present in this group
 			_, err = utils.UpdateRobotProjects(ctx, project, strconv.FormatInt(robotID, 10))
